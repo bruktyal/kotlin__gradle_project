@@ -6,6 +6,51 @@ import org.dbu.library.repository.LibraryRepository
 class DefaultLibraryService(
     private val repository: LibraryRepository
 ) : LibraryService {
+    override fun addBook(book: Book): Boolean {
+        return repository.addBook(book)
+    }
 
- TODO: implement the methods
+    override fun borrowBook(patronId: String, isbn: String): BorrowResult {
+        val book = repository.findBook(isbn) ?: return BorrowResult.BOOK_NOT_FOUND
+        val patron = repository.findPatron(patronId) ?: return BorrowResult.PATRON_NOT_FOUND
+
+        if (!book.isAvailable) return BorrowResult.NOT_AVAILABLE
+        
+        // Borrowing limit check (e.g., 3 books)
+        if (patron.borrowedBooks.size >= 3) return BorrowResult.LIMIT_REACHED
+
+        // Update book status
+        val updatedBook = book.copy(isAvailable = false)
+        repository.updateBook(updatedBook)
+
+        // Update patron status
+        val updatedPatron = patron.copy(borrowedBooks = patron.borrowedBooks + isbn)
+        repository.updatePatron(updatedPatron)
+
+        return BorrowResult.SUCCESS
+    }
+
+    override fun returnBook(patronId: String, isbn: String): Boolean {
+        val book = repository.findBook(isbn) ?: return false
+        val patron = repository.findPatron(patronId) ?: return false
+
+        if (book.isAvailable || !patron.borrowedBooks.contains(isbn)) return false
+
+        // Update book status
+        val updatedBook = book.copy(isAvailable = true)
+        repository.updateBook(updatedBook)
+
+        // Update patron status
+        val updatedPatron = patron.copy(borrowedBooks = patron.borrowedBooks - isbn)
+        repository.updatePatron(updatedPatron)
+
+        return true
+    }
+
+    override fun search(query: String): List<Book> {
+        return repository.getAllBooks().filter {
+            it.title.contains(query, ignoreCase = true) || 
+            it.author.contains(query, ignoreCase = true)
+        }
+    }
 }
